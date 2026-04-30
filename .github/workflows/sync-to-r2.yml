@@ -1,0 +1,31 @@
+name: Sync release assets to Cloudflare R2
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release download "$TAG" \
+            --repo trucb1203981/transkey-desktop-releases \
+            --dir ./assets
+
+      - name: Upload to R2
+        uses: ryand56/r2-upload@master
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: transkey-releases
+          source-dir: ./assets
+          destination-dir: ./
