@@ -36,18 +36,21 @@ jobs:
           aws configure set aws_secret_access_key ${{ secrets.R2_SECRET_ACCESS_KEY }}
           aws configure set default.region auto
 
-      - name: Upload to R2
+      - name: Upload to R2 (versioned path)
         run: |
-          aws s3 sync ./assets ${{ env.R2_BUCKET }}/ \
+          TAG="${{ inputs.tag || github.ref_name }}"
+          # Strip leading 'v' if present to get version number
+          VER="${TAG#v}"
+          aws s3 sync ./assets ${{ env.R2_BUCKET }}/v${VER}/ \
             --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
 
       - name: Cleanup old versions
         run: |
           ENDPOINT="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-          # List all objects, extract version prefixes (e.g. TransKey-1.0.7-arm64.zip → 1.0.7)
+          # List versioned prefixes (e.g. v1.0.7/)
           VERSIONS=$(aws s3 ls ${{ env.R2_BUCKET }}/ --endpoint-url "$ENDPOINT" \
             | awk '{print $4}' \
-            | grep -oP '\d+\.\d+\.\d+' \
+            | grep -oP '^v\K\d+\.\d+\.\d+' \
             | sort -V -u)
 
           TOTAL=$(echo "$VERSIONS" | wc -l | tr -d ' ')
@@ -58,17 +61,13 @@ jobs:
             exit 0
           fi
 
-          # Get versions to delete (all except the latest N)
           DELETE=$(echo "$VERSIONS" | head -n $((TOTAL - KEEP)))
           echo "Keeping latest $KEEP versions, deleting: $(echo $DELETE | tr '\n' ' ')"
 
           for VER in $DELETE; do
-            echo "Deleting v$VER assets..."
-            aws s3 ls ${{ env.R2_BUCKET }}/ --endpoint-url "$ENDPOINT" \
-              | awk '{print $4}' \
-              | grep "$VER" \
-              | while read FILE; do
-                aws s3 rm "${{ env.R2_BUCKET }}/$FILE" --endpoint-url "$ENDPOINT"
-                echo "  Deleted $FILE"
-              done
+            echo "Deleting v$VER/ ..."
+            aws s3 rm ${{ env.R2_BUCKET }}/v${VER}/ \
+              --recursive \
+              --endpoint-url "$ENDPOINT"
+            echo "  Deleted v$VER/"
           done
