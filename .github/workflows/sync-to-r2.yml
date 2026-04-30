@@ -3,6 +3,12 @@ name: Sync release assets to Cloudflare R2
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to sync (e.g. v1.0.7)'
+        required: true
+        type: string
 
 jobs:
   sync:
@@ -15,7 +21,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${{ inputs.tag || github.ref_name }}"
           gh release download "$TAG" \
             --repo trucb1203981/transkey-desktop-releases \
             --dir ./assets
