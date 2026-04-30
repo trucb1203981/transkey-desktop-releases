@@ -26,12 +26,13 @@ jobs:
             --repo trucb1203981/transkey-desktop-releases \
             --dir ./assets
 
+      - name: Configure R2 credentials
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.R2_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          aws configure set default.region auto
+
       - name: Upload to R2
-        uses: ryand56/r2-upload@master
-        with:
-          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
-          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          r2-bucket: transkey-releases
-          source-dir: ./assets
-          destination-dir: ./
+        run: |
+          aws s3 sync ./assets s3://transkey-releases/ \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
