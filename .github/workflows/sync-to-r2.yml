@@ -44,6 +44,22 @@ jobs:
           aws s3 sync ./assets ${{ env.R2_BUCKET }}/v${VER}/ \
             --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
 
+      - name: Upload latest update files to R2 root (for electron-updater)
+        run: |
+          ENDPOINT="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          # electron-updater (generic provider) fetches latest-mac.yml from the
+          # root of the bucket, then downloads the zip file referenced inside it.
+          # Both the yml and the zip files must be at the same base URL.
+          aws s3 cp ./assets/latest-mac.yml ${{ env.R2_BUCKET }}/latest-mac.yml \
+            --endpoint-url "$ENDPOINT"
+          aws s3 cp ./assets/latest.yml ${{ env.R2_BUCKET }}/latest.yml \
+            --endpoint-url "$ENDPOINT" || true
+          # Copy zip files (used by the auto-updater) to root, overwriting previous version.
+          for f in ./assets/*.zip; do
+            [ -f "$f" ] && aws s3 cp "$f" ${{ env.R2_BUCKET }}/$(basename "$f") \
+              --endpoint-url "$ENDPOINT"
+          done
+
       - name: Cleanup old versions
         run: |
           ENDPOINT="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
