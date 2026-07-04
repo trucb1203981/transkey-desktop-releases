@@ -54,22 +54,47 @@ jobs:
             --endpoint-url "$ENDPOINT"
           aws s3 cp ./assets/latest.yml ${{ env.R2_BUCKET }}/latest.yml \
             --endpoint-url "$ENDPOINT" || true
-          # Copy zip files (used by the auto-updater) to root, overwriting previous version.
+          # Copy zip files (used by the auto-updater) to root. Filenames carry
+          # the version, so nothing overwrites - stale versions are pruned below.
           for f in ./assets/*.zip; do
             [ -f "$f" ] && aws s3 cp "$f" ${{ env.R2_BUCKET }}/$(basename "$f") \
               --endpoint-url "$ENDPOINT"
           done
 
-      - name: Cleanup old versions
+      - name: Prune previous versions' update files from the R2 root
         run: |
           ENDPOINT="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-          # List versioned prefixes (e.g. v1.0.7/)
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VER="${TAG#v}"
+          # Root must hold ONLY the current version's updater archives (plus
+          # latest*.yml). Older zips used to pile up forever because their
+          # versioned filenames never overwrite each other. models/ and the
+          # v<X.Y.Z>/ prefixes are directories (PRE lines) - untouched here.
+          aws s3 ls ${{ env.R2_BUCKET }}/ --endpoint-url "$ENDPOINT" \
+            | awk '$1!="PRE" && $4 ~ /\.(zip|dmg)(\.blockmap)?$/ {print $4}' \
+            | while read -r f; do
+                case "$f" in
+                  *"$VER"*) echo "keep  $f" ;;
+                  *)
+                    echo "prune $f"
+                    aws s3 rm "${{ env.R2_BUCKET }}/$f" --endpoint-url "$ENDPOINT"
+                    ;;
+                esac
+              done
+
+      - name: Cleanup old versioned prefixes (keep latest KEEP_VERSIONS)
+        run: |
+          ENDPOINT="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          # Versioned prefixes are DIRECTORY lines: "PRE v1.0.7/" - the name is
+          # field 2 of a PRE line. The old parser read field 4 (only set on
+          # FILE lines), matched nothing, and never deleted anything. The ^v
+          # match also keeps non-version prefixes (models/) out of scope.
           VERSIONS=$(aws s3 ls ${{ env.R2_BUCKET }}/ --endpoint-url "$ENDPOINT" \
-            | awk '{print $4}' \
-            | grep -oP '^v\K\d+\.\d+\.\d+' \
+            | awk '$1=="PRE"{print $2}' \
+            | grep -oE '^v[0-9]+\.[0-9]+\.[0-9]+' \
             | sort -V -u)
 
-          TOTAL=$(echo "$VERSIONS" | wc -l | tr -d ' ')
+          TOTAL=$(printf '%s\n' "$VERSIONS" | grep -c . || true)
           KEEP=${{ env.KEEP_VERSIONS }}
 
           if [ "$TOTAL" -le "$KEEP" ]; then
@@ -77,13 +102,13 @@ jobs:
             exit 0
           fi
 
-          DELETE=$(echo "$VERSIONS" | head -n $((TOTAL - KEEP)))
+          DELETE=$(printf '%s\n' "$VERSIONS" | head -n $((TOTAL - KEEP)))
           echo "Keeping latest $KEEP versions, deleting: $(echo $DELETE | tr '\n' ' ')"
 
           for VER in $DELETE; do
-            echo "Deleting v$VER/ ..."
-            aws s3 rm ${{ env.R2_BUCKET }}/v${VER}/ \
+            echo "Deleting $VER/ ..."
+            aws s3 rm ${{ env.R2_BUCKET }}/${VER}/ \
               --recursive \
               --endpoint-url "$ENDPOINT"
-            echo "  Deleted v$VER/"
+            echo "  Deleted $VER/"
           done
