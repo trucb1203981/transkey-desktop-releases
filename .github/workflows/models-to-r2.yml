@@ -1,0 +1,105 @@
+name: Validate manifest + mirror MT models to Cloudflare R2
+
+# models/manifest.json (in git) is the single source of truth the desktop app
+# fetches at runtime (raw.githubusercontent.com). This workflow:
+#   1. validates the manifest against the app's contract (schema, tiers,
+#      engine/format, required fields) so a malformed entry can never ship;
+#   2. mirrors each model from source_url (Hugging Face) to R2, verifying
+#      size + sha256 byte-for-byte.
+# Model binaries never enter git.
+
+on:
+  push:
+    branches: [main]
+    paths: ['models/manifest.json']
+  workflow_dispatch:
+
+env:
+  R2_BUCKET: transkey-releases
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate manifest structure (the app contract)
+        run: |
+          M=models/manifest.json
+          jq empty "$M" || { echo "::error::manifest is not valid JSON"; exit 1; }
+
+          [ "$(jq '.schemaVersion' "$M")" = "1" ] \
+            || { echo "::error::schemaVersion must be 1 (bump only together with app support)"; exit 1; }
+
+          ERRORS=$(jq -r '
+            .models | to_entries[] | .key as $i | .value
+            | select(
+                (.id // "" | length) == 0
+                or ((.tier == "1.5b" or .tier == "3b") | not)
+                or .engine != "llm"
+                or .format != "gguf"
+                or ((.file // "") | endswith(".gguf") | not)
+                or ((.bytes // 0) < 1000000)
+                or ((.sha256 // "" | length) != 64)
+                or ((.source_url // "" | startswith("https://")) | not)
+                or ((.minAppVersion // "" | length) == 0)
+              )
+            | "models[\($i)] (id=\(.id // "?")) violates the contract"
+          ' "$M")
+          [ -z "$ERRORS" ] || { echo "$ERRORS" | while read -r e; do echo "::error::$e"; done; exit 1; }
+
+          DUP_TIERS=$(jq -r '[.models[].tier] | group_by(.) | map(select(length>1) | .[0]) | .[]' "$M")
+          [ -z "$DUP_TIERS" ] || { echo "::error::duplicate tier(s): $DUP_TIERS - one model per tier"; exit 1; }
+
+          EMPTY_URLS=$(jq -r '.models[] | select(.url == "") | .id' "$M")
+          [ -z "$EMPTY_URLS" ] \
+            && echo "manifest OK" \
+            || echo "::warning::empty url for: $EMPTY_URLS - the app will download from source_url (HF) until you fill the R2 public URL"
+
+      - name: Configure R2 credentials
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.R2_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          aws configure set default.region auto
+
+      - name: Mirror each model (skip when already on R2 with the same size)
+        run: |
+          ENDPOINT="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          M=models/manifest.json
+          COUNT=$(jq '.models | length' "$M")
+          for i in $(seq 0 $((COUNT - 1))); do
+            FILE=$(jq -r ".models[$i].file" "$M")
+            SRC=$(jq -r ".models[$i].source_url" "$M")
+            BYTES=$(jq -r ".models[$i].bytes" "$M")
+            SHA=$(jq -r ".models[$i].sha256" "$M")
+
+            REMOTE_SIZE=$(aws s3api head-object --bucket ${{ env.R2_BUCKET }} \
+              --key "models/$FILE" --endpoint-url "$ENDPOINT" \
+              --query ContentLength --output text 2>/dev/null || echo MISSING)
+            if [ "$REMOTE_SIZE" = "$BYTES" ]; then
+              echo "models/$FILE already on R2 with matching size - skip"
+              continue
+            fi
+
+            echo "Downloading $SRC"
+            curl -fSL --retry 3 -o "$FILE" "$SRC"
+
+            ACTUAL_BYTES=$(stat -c%s "$FILE")
+            if [ "$ACTUAL_BYTES" != "$BYTES" ]; then
+              echo "::error::$FILE size $ACTUAL_BYTES != manifest bytes $BYTES - fix the manifest from the real content-length"
+              exit 1
+            fi
+            ACTUAL_SHA=$(sha256sum "$FILE" | cut -d' ' -f1)
+            if [ "$ACTUAL_SHA" != "$SHA" ]; then
+              echo "::error::$FILE sha256 $ACTUAL_SHA != manifest $SHA"
+              exit 1
+            fi
+
+            aws s3 cp "$FILE" "s3://${{ env.R2_BUCKET }}/models/$FILE" \
+              --endpoint-url "$ENDPOINT"
+            rm -f "$FILE"
+            echo "Mirrored models/$FILE"
+          done
