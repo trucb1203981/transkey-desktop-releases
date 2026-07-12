@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-07-05",
+  "updatedAt": "2026-07-12",
   "models": [
     {
       "id": "qwen2.5-1.5b-instruct-q4km",
@@ -25,6 +25,18 @@
       "url": "https://pub-315e0983a33e465cb4e5e4121a2a4c80.r2.dev/models/qwen2.5-3b-instruct-q4_k_m.gguf",
       "source_url": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
       "minAppVersion": "2.0.0"
+    },
+    {
+      "id": "transkey-vi-0.5b-game-v3",
+      "tier": "0.5b-game",
+      "engine": "llm",
+      "format": "gguf",
+      "file": "transkey-vi-0.5b-v3-q4km.gguf",
+      "bytes": 397807584,
+      "sha256": "033f0857357fc46de28370f91ae0f25697238b37e94ee8718f8315dad52a409b",
+      "url": "https://github.com/trucb1203981/transkey-desktop-releases/releases/download/models/transkey-vi-0.5b-v3-q4km.gguf",
+      "source_url": "https://github.com/trucb1203981/transkey-desktop-releases/releases/download/models/transkey-vi-0.5b-v3-q4km.gguf",
+      "minAppVersion": "2.1.0"
     }
   ]
 }
