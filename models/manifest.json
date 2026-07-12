@@ -34,7 +34,7 @@
       "file": "transkey-vi-0.5b-v3-q4km.gguf",
       "bytes": 397807584,
       "sha256": "033f0857357fc46de28370f91ae0f25697238b37e94ee8718f8315dad52a409b",
-      "url": "https://github.com/trucb1203981/transkey-desktop-releases/releases/download/models/transkey-vi-0.5b-v3-q4km.gguf",
+      "url": "https://pub-315e0983a33e465cb4e5e4121a2a4c80.r2.dev/models/transkey-vi-0.5b-v3-q4km.gguf",
       "source_url": "https://github.com/trucb1203981/transkey-desktop-releases/releases/download/models/transkey-vi-0.5b-v3-q4km.gguf",
       "minAppVersion": "2.1.0"
     }
