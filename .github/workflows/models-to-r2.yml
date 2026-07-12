@@ -38,7 +38,7 @@ jobs:
             .models | to_entries[] | .key as $i | .value
             | select(
                 (.id // "" | length) == 0
-                or ((.tier == "1.5b" or .tier == "3b") | not)
+                or ((.tier == "1.5b" or .tier == "3b" or .tier == "0.5b-game") | not)
                 or .engine != "llm"
                 or .format != "gguf"
                 or ((.file // "") | endswith(".gguf") | not)
