@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-07-12",
+  "updatedAt": "2026-07-17",
   "models": [
     {
       "id": "qwen2.5-1.5b-instruct-q4km",
@@ -27,15 +27,15 @@
       "minAppVersion": "2.0.0"
     },
     {
-      "id": "transkey-vi-0.5b-game-v3",
+      "id": "transkey-vi-gemma3-13lang-v5",
       "tier": "0.5b-game",
       "engine": "llm",
       "format": "gguf",
-      "file": "transkey-vi-0.5b-v3-q4km.gguf",
-      "bytes": 397807584,
-      "sha256": "033f0857357fc46de28370f91ae0f25697238b37e94ee8718f8315dad52a409b",
-      "url": "https://pub-315e0983a33e465cb4e5e4121a2a4c80.r2.dev/models/transkey-vi-0.5b-v3-q4km.gguf",
-      "source_url": "https://github.com/trucb1203981/transkey-desktop-releases/releases/download/models/transkey-vi-0.5b-v3-q4km.gguf",
+      "file": "transkey-vi-gemma3-13lang-v5-q5km.gguf",
+      "bytes": 1077837920,
+      "sha256": "13d07fa151bf3cf6254a1116a0c49b9b42a1920a61f4bcb368b4dd77e3c9e470",
+      "url": "https://pub-315e0983a33e465cb4e5e4121a2a4c80.r2.dev/models/transkey-vi-gemma3-13lang-v5-q5km.gguf",
+      "source_url": "https://github.com/trucb1203981/transkey-desktop-releases/releases/download/models/transkey-vi-gemma3-13lang-v5-q5km.gguf",
       "minAppVersion": "2.1.0"
     }
   ]
